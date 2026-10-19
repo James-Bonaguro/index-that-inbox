@@ -28,7 +28,9 @@ function loadGas(stubs = {}) {
         ...stubs.globals,
     };
     vm.createContext(context);
-    vm.runInContext(SOURCE, context);
+    // A real-looking DOC_ID gets past the "not set up yet" guard in doPost.
+    const source = stubs.docId ? SOURCE.replace("'PASTE_YOUR_GOOGLE_DOC_ID_HERE'", JSON.stringify(stubs.docId)) : SOURCE;
+    vm.runInContext(source, context);
     return context;
 }
 

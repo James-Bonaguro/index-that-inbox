@@ -34,16 +34,38 @@ The key goes inside both Shortcuts. If you ever share a Shortcut, delete the key
 1. Add **Text** → paste your web app URL. Add **Set Variable** → name it `Webhook`.
 2. Add **Text** → paste your key. Add **Set Variable** → name it `Key`.
 
-### 3. Images (screenshots and photos)
+Links are checked **before** images on purpose. When you share a Safari page, "Get Images from Input" would grab the page's pictures and lose the link.
 
-1. Add **Get Images from Input** (input: Shortcut Input).
-2. Add **If** → `Images` **has any value**.
-3. Inside the If, add these in order:
-   - **Get Item from List** → First Item of `Images` (one image per capture)
-   - **Convert Image** → to **JPEG** (this turns iPhone HEIC photos into JPEG)
-   - **Resize Image** → width **1600**, height Auto (keeps text readable and the upload small)
-   - **Base64 Encode** → tap Show More → **Line Breaks: None**
+### 3. Links (Instagram, X, Safari, anything with a URL)
+
+1. Add **Get URLs from Input** (input: Shortcut Input).
+2. Add **If** → `URLs` **has any value**. This is the **outer If**.
+3. Inside it:
+   - **Get Item from List** → First Item of `URLs`
+   - **Get Name** of Shortcut Input (for Safari pages this is the page title)
    - **Get Contents of URL** → URL: `Webhook`. Tap Show More: Method **POST**, Request Body **JSON**, then add these fields:
+
+| Key | Type | Value |
+|---|---|---|
+| `type` | Text | `url` |
+| `url` | Text | Item from List |
+| `title` | Text | Name |
+| `text` | Text | Shortcut Input |
+| `source` | Text | `share-sheet` |
+| `key` | Text | `Key` variable |
+
+`text` carries any caption you shared along with the link (for example "steal this hook https://..."). When the shared item is just the link, the server drops the duplicate. If an app has no real title, Get Name returns the URL. The server ignores that and uses the platform name instead.
+
+### 4. Images (screenshots and photos)
+
+1. Under the outer If's **Otherwise**, add **Get Images from Input** (input: Shortcut Input).
+2. Add **If** → `Images` **has any value**. This is the **inner If**.
+3. Inside it, add these in order:
+   - **Get Item from List** → First Item of `Images` (one image per capture)
+   - **Resize Image** → by **Longest Edge**, **1600**. Screenshots are already under 1600 wide, so this only shrinks large photos. If your iOS version only offers width and height, skip this step for screenshots; the server takes up to 10 MB.
+   - **Convert Image** → to **JPEG**. Keep this as the last image step: it turns iPhone HEIC photos into JPEG, and the server is told the file is a JPEG.
+   - **Base64 Encode** → tap Show More → **Line Breaks: None**
+   - **Get Contents of URL** → URL: `Webhook`, Method **POST**, Request Body **JSON**:
 
 | Key | Type | Value |
 |---|---|---|
@@ -52,28 +74,9 @@ The key goes inside both Shortcuts. If you ever share a Shortcut, delete the key
 | `key` | Text | `Key` variable |
 | `image` | Dictionary | `data` (Text) = Base64 Encoded result; `mimeType` (Text) = `image/jpeg` |
 
-### 4. Links (Instagram, X, Safari, anything with a URL)
-
-1. Under **Otherwise**, add **Get URLs from Input** (input: Shortcut Input).
-2. Add **If** → `URLs` **has any value**.
-3. Inside it:
-   - **Get Item from List** → First Item of `URLs`
-   - **Get Name** of Shortcut Input (for Safari pages this is the page title)
-   - **Get Contents of URL** → URL: `Webhook`, Method **POST**, Request Body **JSON**:
-
-| Key | Type | Value |
-|---|---|---|
-| `type` | Text | `url` |
-| `url` | Text | Item from List |
-| `title` | Text | Name |
-| `source` | Text | `share-sheet` |
-| `key` | Text | `Key` variable |
-
-If an app has no real title, Get Name returns the URL itself. The server ignores that and uses the platform name instead.
-
 ### 5. Plain text
 
-1. Under the inner **Otherwise**, add **Get Contents of URL** → URL: `Webhook`, Method **POST**, Request Body **JSON**:
+1. Under the inner If's **Otherwise**, add **Get Contents of URL** → URL: `Webhook`, Method **POST**, Request Body **JSON**:
 
 | Key | Type | Value |
 |---|---|---|
@@ -84,12 +87,12 @@ If an app has no real title, Get Name returns the URL itself. The server ignores
 
 ### 6. Confirm it saved
 
-After both **End If** lines:
+After the last **End If** (the outer one, at the bottom):
 
-1. Add **Get Dictionary Value** → Get Value for `tag` in **If Result**.
+1. Add **Get Dictionary Value** → Get Value for `tag` in **If Result**. Pick the If Result from the **outer** If; it holds whichever branch's reply ran.
 2. Add **If** → Dictionary Value **has any value**.
    - Inside: **Show Notification** → `Indexed` plus the Dictionary Value (for example "Indexed [LINK]").
-   - **Otherwise:** **Get Dictionary Value** → `error` in If Result, then **Show Notification** → `Not saved:` plus that value.
+   - **Otherwise:** **Get Dictionary Value** → `error` in that same If Result, then **Show Notification** → `Not saved:` plus that value.
 
 Only successful saves return `tag`, so a broken connection never shows a false "Indexed".
 
@@ -115,7 +118,9 @@ Open any share sheet (Photos is easiest). Scroll the app row to the end → **Mo
 | `source` | Text | `dictation` |
 | `key` | Text | `Key` variable |
 
-7. Still inside the If: **Get Dictionary Value** → `tag` from Contents of URL → **Show Notification** `Indexed`. (For the fuller check, copy step 6 from Shortcut A.)
+7. Still inside the If: **Get Dictionary Value** → `tag` from **Contents of URL**, then **If** → Dictionary Value **has any value**:
+   - Inside: **Show Notification** → `Indexed`.
+   - **Otherwise:** **Get Dictionary Value** → `error` from Contents of URL → **Show Notification** → `Not saved:` plus that value.
 
 ### Trigger it without opening anything
 
@@ -136,7 +141,11 @@ Take the screenshot, tap the thumbnail in the corner, tap **Share** → **Index 
 3. Share any Instagram post with **Index That**. You should see `[LINK] Instagram · …` with the link.
 4. Share a screenshot. You should see `[ASSET] Screenshot · …` and a link to the image file in the inbox Drive folder.
 
-If you get "Not saved: Unauthorized", the key in the Shortcut doesn't match `INGEST_KEY`.
+If something goes wrong:
+
+- **"Not saved: Unauthorized"**: the key in the Shortcut doesn't match `INGEST_KEY`.
+- **"Not saved: ... DOC_ID"**: the Doc ID was never pasted into `Code.gs`.
+- **A web page or sign-in screen instead of a reply, or the PWA stuck on "Syncing"**: the deployment's "Who has access" isn't **Anyone**. Fix it under Deploy → Manage deployments.
 
 ## Limits
 

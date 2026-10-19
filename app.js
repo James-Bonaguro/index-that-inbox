@@ -136,6 +136,7 @@ let attachment = null;     // { dataUrl, thumbUrl }
 let syncing = false;
 let retryDelay = 5_000;
 let retryTimer = null;
+let authFailed = false;     // set when the server rejects the key; cleared when a new key is saved
 
 function uuid() {
     if (crypto.randomUUID) return crypto.randomUUID();
@@ -336,6 +337,9 @@ function updatePill() {
     if (!isConfigured()) {
         state = 'failed';
         label = pending ? `Set up · ${pending} waiting` : 'Set up';
+    } else if (authFailed) {
+        state = 'failed';
+        label = 'Key needed';
     } else if (!navigator.onLine) {
         state = 'offline';
         label = pending ? `Offline · ${pending} queued` : 'Offline';
@@ -398,7 +402,7 @@ async function send(item) {
 
 async function sync() {
     if (syncing) return;
-    if (!isConfigured()) {
+    if (!isConfigured() || authFailed) {
         updatePill(); // captures stay queued until the setup sheet is filled in
         return;
     }
@@ -431,6 +435,7 @@ async function sync() {
                 break;
             } else if (result.code === 'unauthorized') {
                 // Every other capture would be rejected too, so stop here; saving a new key re-queues this one.
+                authFailed = true;
                 next.status = 'failed';
                 next.error = 'Unauthorized';
                 await store.put(next);
@@ -692,6 +697,7 @@ function saveSetup() {
 
     setSetting(ENDPOINT_KEY, endpoint);
     setSetting(SECRET_KEY, key);
+    authFailed = false;
     els.setupSheet.close();
 
     for (const item of items.values()) {
@@ -750,7 +756,7 @@ function bindEvents() {
     els.removeImage.addEventListener('click', clearAttachment);
     els.micBtn.addEventListener('click', toggleDictation);
     els.pill.addEventListener('click', () => {
-        if (!isConfigured()) {
+        if (!isConfigured() || authFailed) {
             openSetupSheet();
             return;
         }

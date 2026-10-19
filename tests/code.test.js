@@ -158,7 +158,7 @@ function fakeWorkspace({ fetch } = {}) {
         base64Decode: (s) => Buffer.from(s, 'base64'),
         newBlob: (bytes, type, name) => ({ name }),
     };
-    return { written, gas: loadGas({ properties: { INGEST_KEY: 'k' }, globals }) };
+    return { written, gas: loadGas({ docId: 'test-doc', properties: { INGEST_KEY: 'k' }, globals }) };
 }
 
 test('link saves even when the title fetch fails', () => {
@@ -193,4 +193,56 @@ test('screenshot saves to Drive and links from the Doc', () => {
     assert.match(written[0].text, /^\[ASSET\] Screenshot · /);
     assert.match(written[1].text, /^📎 Image: capture-.*-abcdef12\.jpg$/);
     assert.ok(written[1].link.startsWith('https://drive/'));
+});
+
+// --- Review fixes -----------------------------------------------------------
+
+test('Shortcut url branch: text equal to the url is dropped, caption kept', () => {
+    const same = parse({ type: 'url', url: 'https://x.com/a/status/1', text: 'https://x.com/a/status/1' });
+    assert.equal(same.text, '');
+    const caption = parse({ type: 'url', url: 'https://x.com/a/status/1', text: 'steal this hook https://x.com/a/status/1' });
+    assert.equal(caption.text, 'steal this hook https://x.com/a/status/1');
+});
+
+test('titles that are really urls are dropped', () => {
+    assert.equal(parse({ type: 'url', url: 'https://x.com/1', title: 'Post\nhttps://x.com/1' }).title, null);
+    assert.equal(parse({ type: 'url', url: 'https://x.com/1', title: 'https://x.com/other' }).title, null);
+    assert.equal(parse({ type: 'url', url: 'https://x.com/1', title: 'A real title' }).title, 'A real title');
+});
+
+test('url found in text loses trailing punctuation', () => {
+    assert.equal(parse({ type: 'url', text: 'look (https://x.com/a/status/1).' }).url, 'https://x.com/a/status/1');
+});
+
+test('oversized image is rejected as invalid, not retried', () => {
+    const big = 'A'.repeat(Math.ceil(10 * 1024 * 1024 * 4 / 3) + 8);
+    assert.throws(() => parse({ image: { data: big, mimeType: 'image/jpeg' } }), /larger than 10 MB/);
+});
+
+test('extractTitle_ decodes numeric entities', () => {
+    assert.equal(gas.extractTitle_('<meta property="og:title" content="Jim (&#064;bigjim) &#8217;s &#x2019;post">'), 'Jim (@bigjim) ’s ’post');
+});
+
+test('placeholder DOC_ID is a setup error, not retryable', () => {
+    const g = loadGas({ properties: { INGEST_KEY: 'k' } });
+    const res = JSON.parse(g.doPost(post({ text: 'hi', key: 'k' })).text);
+    assert.equal(res.ok, false);
+    assert.equal(res.retryable, false);
+    assert.match(res.error, /DOC_ID/);
+});
+
+test('duplicate id returns cached reply without fetching the title again', () => {
+    let fetches = 0;
+    const cached = JSON.stringify({ ok: true, id: 'dup1', tag: '[LINK]' });
+    const g = loadGas({
+        docId: 'test-doc',
+        properties: { INGEST_KEY: 'k' },
+        globals: {
+            CacheService: { getScriptCache: () => ({ get: () => cached, put() {} }) },
+            UrlFetchApp: { fetch: () => { fetches++; throw new Error('hang'); } },
+        },
+    });
+    const res = JSON.parse(g.doPost(post({ id: 'dup1', text: 'https://slow.example/a', key: 'k' })).text);
+    assert.equal(res.duplicate, true);
+    assert.equal(fetches, 0);
 });

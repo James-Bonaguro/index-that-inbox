@@ -19,6 +19,7 @@
 
 // ID of the inbox Google Doc (the long string in its URL: /document/d/<ID>/edit).
 const DOC_ID = 'PASTE_YOUR_GOOGLE_DOC_ID_HERE';
+const DOC_ID_PLACEHOLDER = 'PASTE_YOUR_GOOGLE_DOC_ID_HERE';
 
 const KEY_PROPERTY = 'INGEST_KEY';
 const DEDUPE_TTL_SECONDS = 6 * 60 * 60; // Offline retries with the same id are ignored for 6h.
@@ -32,6 +33,7 @@ const MAX_HTML_CHARS = 200000;
 const LEGACY_IMAGE_PLACEHOLDER = '[Image Attached - No Text]';
 const TYPES = ['text', 'image', 'url'];
 const URL_IN_TEXT = /https?:\/\/[^\s<>"]+/i;
+const TRAILING_PUNCTUATION = /[).,;:!?'"\]]+$/;
 const ONLY_A_URL = /^https?:\/\/\S+$/i;
 
 const IMAGE_EXTENSIONS = {
@@ -75,6 +77,16 @@ function doPost(e) {
     return json_({ ok: false, retryable: false, code: 'unauthorized', error: 'Unauthorized' });
   }
 
+  if (DOC_ID === DOC_ID_PLACEHOLDER) {
+    return json_({ ok: false, retryable: false, error: 'Not set up: paste the inbox Doc ID into DOC_ID in Code.gs' });
+  }
+
+  // A retry of something already saved answers at once, before any slow title fetch.
+  const cache = CacheService.getScriptCache();
+  const cacheKey = capture.id ? 'capture:' + capture.id : null;
+  const earlier = cacheKey ? cache.get(cacheKey) : null;
+  if (earlier) return json_(Object.assign(JSON.parse(earlier), { duplicate: true }));
+
   // Fetched before taking the lock so a slow site never blocks other captures.
   if (capture.type === 'url' && !capture.title) capture.title = fetchTitle_(capture.url);
 
@@ -86,8 +98,7 @@ function doPost(e) {
   }
 
   try {
-    const cache = CacheService.getScriptCache();
-    const cacheKey = capture.id ? 'capture:' + capture.id : null;
+    // Checked again under the lock: two copies of one capture can arrive together.
     if (cacheKey) {
       const previous = cache.get(cacheKey);
       if (previous) return json_(Object.assign(JSON.parse(previous), { duplicate: true }));
@@ -131,6 +142,7 @@ function parseCapture_(e) {
   if (image) {
     if (!/^image\//.test(image.mimeType)) throw new Error('unsupported image type ' + image.mimeType);
     if (!image.data) throw new Error('image data missing');
+    if (Math.floor(image.data.replace(/=+$/, '').length * 3 / 4) > MAX_IMAGE_BYTES) throw new Error('image larger than 10 MB');
   }
 
   let url = typeof payload.url === 'string' ? payload.url.trim() : '';
@@ -144,10 +156,12 @@ function parseCapture_(e) {
       url = text;
       text = '';
     } else if (!url) {
-      url = (text.match(URL_IN_TEXT) || [''])[0];
+      url = (text.match(URL_IN_TEXT) || [''])[0].replace(TRAILING_PUNCTUATION, '');
     }
     if (!/^https?:\/\//i.test(url)) throw new Error('url must be http(s)');
     if (url.length > MAX_URL_CHARS) throw new Error('url too long');
+    // The Share Sheet Shortcut sends its input as text too; when that's just the link, it isn't a note.
+    if (text === url) text = '';
   } else {
     url = '';
   }
@@ -166,8 +180,8 @@ function parseCapture_(e) {
     type: type,
     text: text,
     url: url || null,
-    // Shortcuts' "Get Name" falls back to the URL itself when a page has no name; that isn't a title.
-    title: title && title !== url ? title : null,
+    // Shortcuts' "Get Name" falls back to the URL (sometimes alongside the name) when a page has none.
+    title: title && !/https?:\/\//i.test(title) ? title : null,
     image: image,
     source: source || 'unknown',
     key: typeof payload.key === 'string' ? payload.key : '',
@@ -226,7 +240,10 @@ function extractTitle_(html) {
   if (raw === null) return null;
   const clean = raw
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&#x27;|&apos;/g, "'").replace(/&amp;/g, '&')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, function (m, n) { return codePoint_(parseInt(n, 10), m); })
+    .replace(/&#x([0-9a-f]+);/gi, function (m, h) { return codePoint_(parseInt(h, 16), m); })
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ').trim();
   return clean ? clean.slice(0, MAX_TITLE_CHARS) : null;
 }
@@ -319,6 +336,14 @@ function appendLink_(body, label, url) {
 
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function codePoint_(n, fallback) {
+  try {
+    return String.fromCodePoint(n);
+  } catch (err) {
+    return fallback;
+  }
 }
 
 function errorMessage_(err) {
