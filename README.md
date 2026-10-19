@@ -1,72 +1,88 @@
-# Edge-to-Enterprise Data Ingestion
+# Index That Inbox
 
-A zero-cost, serverless pipeline that routes unstructured edge data (voice, field notes, screenshots) from an iPhone straight into Google Workspace for AI synthesis.
+A private capture inbox for the Index That Instagram brand. Anything that catches your eye on the iPhone (a post, a link, a screenshot, a passing thought) goes into one Google Doc in a couple of taps. Claude Code, Gemini and other agents then read that Doc to build content.
 
-## Architecture
+No servers to run, no paid services, no dependencies, no build step.
 
-**Edge capture (PWA):** an offline-first Progressive Web App installed to the iOS Home Screen. It runs full-screen with no Safari UI and opens instantly, even in airplane mode. Captures are written to an on-device outbox (IndexedDB) first and sync when the network is back.
+## How it fits together
 
-**Serverless middleware (Google Apps Script):** `apps-script/Code.gs` receives JSON captures:
-- text → appended to the target Google Doc under a timestamp
-- image → saved as a file in the Drive folder that holds the Doc, with a link written into the Doc entry
-
-**Data lake (Google Docs + Drive)** feeds **AI synthesis (NotebookLM)**, which indexes the Doc for RAG queries.
-
-## Files
-
-| File | Purpose |
+| Piece | Role |
 |---|---|
-| `index.html` | App shell and iOS meta tags |
-| `styles.css` | Dark iOS design system |
-| `app.js` | Capture, dictation, paste, image compression, offline outbox, sync |
-| `sw.js` | Service worker: caches the app shell for instant offline launch |
-| `manifest.json` | PWA manifest |
-| `icons/` | App icon (`icon.svg` is the source), PNG sizes, iPhone launch screens |
-| `apps-script/Code.gs` | Backend; paste into the Apps Script editor |
-| `vercel.json` | Security headers (strict CSP) and service-worker caching rules |
+| **iOS Shortcuts** (`ios-shortcut-guide.md`) | The main way in. "Index That" in the Share Sheet for posts, links and screenshots; "Index Thought" on Back Tap or the Action Button for voice. |
+| **PWA** (`index.html`, `app.js`, `styles.css`, `sw.js`) | Dashboard and offline fallback. Captures save on the phone first and sync when a connection returns. |
+| **Apps Script webhook** (`apps-script/Code.gs`) | One private endpoint for all of the above. Checks the key, tags each capture, writes it to the Doc, saves images to Drive. |
+| **Google Doc + Drive folder** "Index That Inbox" | Where everything lands. Private to your account. |
 
-No dependencies, no build step.
+Every entry gets a heading like `[LINK] Instagram · Mon, Oct 19, 2026 at 3:05 PM`:
+
+- `[NOTE]`: text or dictation
+- `[LINK]`: a URL, or text containing one (page title fetched when the sender has none)
+- `[ASSET]`: an image, saved in the Doc's Drive folder and linked from the entry
+
+The platform comes from the link's site (Instagram, X, TikTok, YouTube, LinkedIn, Threads, Reddit, or the bare domain). Captures without a link show as Voice, Screenshot or Note. The guide's "How AI readers use the inbox" section documents the exact entry format.
 
 ## Payload
 
-`POST` to the Apps Script `/exec` URL with `Content-Type: text/plain`:
+`POST` JSON to the Apps Script `/exec` URL. The PWA sends `Content-Type: text/plain` to avoid a CORS preflight; Shortcuts send `application/json`. Both work.
 
-```json
-{
-  "id": "uuid",
-  "createdAt": "2026-10-19T14:05:00.000Z",
-  "text": "Field note…",
-  "image": { "data": "<base64 JPEG, no data: prefix>", "mimeType": "image/jpeg" },
-  "source": "ios-pwa"
-}
+| Field | Required | Notes |
+|---|---|---|
+| `key` | yes | Must match the `INGEST_KEY` script property |
+| `type` | no | `text`, `url` or `image`. If missing: any image means `image`; a `url` field or text that is only a URL means `url`; otherwise `text` |
+| `text` | for text | Up to 50,000 characters. Also allowed as a note on links and images |
+| `url` | for url | `http(s)` only, up to 2,048 characters |
+| `title` | no | Page title. If missing, the server tries to fetch it |
+| `image` | for image | `{ "data": "<base64, no data: prefix>", "mimeType": "image/jpeg" }`, up to 10 MB |
+| `source` | no | Where it came from: `pwa`, `share-sheet`, `dictation` |
+| `id` | no | Any unique string. A repeat of the same `id` within 6 hours is not written twice |
+| `createdAt` | no | ISO timestamp. Defaults to now |
+
+The old PWA shape (`{ text, image: "data:image/jpeg;base64,..." }`) still works.
+
+**Responses**
+
+- Saved: `{ "ok": true, "id", "tag", "platform", "docUrl", "fileUrl" }`
+- Wrong or missing key: `{ "ok": false, "retryable": false, "code": "unauthorized", "error": "Unauthorized" }`
+- Bad payload: `{ "ok": false, "retryable": false, "error": "Invalid payload: ..." }`
+- Temporary problem: `{ "ok": false, "retryable": true, "error": "..." }`
+
+## Setup
+
+**1. Google side**
+
+1. In Google Drive (james.bonaguro@gmail.com), create a folder **Index That Inbox** and a Google Doc of the same name inside it. Share neither.
+2. Go to [script.google.com](https://script.google.com) → **New project**. Name it "Index That Inbox". Replace `Code.gs` with `apps-script/Code.gs`.
+3. Set `DOC_ID` to the Doc's ID (the long string in its URL between `/d/` and `/edit`).
+4. **Project Settings** → **Script Properties** → add `INGEST_KEY` with a long passphrase only you know.
+5. Choose the `authorize` function → **Run**, and approve access. The log should say `INGEST_KEY is set`.
+6. **Deploy** → **New deployment** → type **Web app** → Execute as **Me**, Who has access **Anyone** → **Deploy**. Copy the `/exec` URL.
+7. Open the `/exec` URL in a browser. It should show `{"ok":true,"service":"index-that-inbox",...}`.
+
+"Anyone" only means anyone can reach the URL. Without the key, nothing gets written.
+
+Later code changes: **Deploy** → **Manage deployments** → edit → **Version: New version**. This keeps the same URL.
+
+**2. iPhone**
+
+1. Build the two Shortcuts with `ios-shortcut-guide.md`.
+2. Open the Vercel URL in Safari → Share → **Add to Home Screen**. Launch it from the icon, then paste the `/exec` URL and the key into the setup sheet. Edit them later with the gear button.
+
+**3. Front-end deploy**
+
+Static files on Vercel; no build settings. `vercel.json` sets a strict Content Security Policy. When you change `sw.js` or the list of cached files, bump `VERSION` in `sw.js`.
+
+## Tests
+
+```bash
+node --test tests/*.test.js
 ```
 
-Response: `{ "ok": true, "id", "docUrl", "fileUrl" }` or `{ "ok": false, "retryable": bool, "error" }`. The `id` makes retries idempotent: a capture resent within 6 hours is not appended twice.
+They run `Code.gs` in Node with stand-ins for the Google services, covering parsing, tags, platforms, titles, the key check and the full save path, plus the PWA's capture-type helper. They don't replace one real capture on the phone after each deploy.
 
-Images are compressed on the phone before upload (long edge ≤ 1600px, JPEG, ≤ ~1.1 MB), keeping screenshots legible and well under Apps Script limits.
+## Notes
 
-## Why there is no `doOptions`
-
-Apps Script never passes HTTP `OPTIONS` requests to the script, so a CORS preflight can't be handled there. The app avoids preflight entirely by sending a "simple" request (`text/plain` body). Google adds `Access-Control-Allow-Origin: *` to the response, so the app can still read the JSON reply.
-
-## Deploy
-
-**Backend**
-1. Open the Apps Script project, replace its code with `apps-script/Code.gs`, set `DOC_ID` to the target Doc's ID.
-2. Run `authorize` once from the editor to grant Docs/Drive access.
-3. Deploy → Manage deployments → edit the existing Web app → Version: **New version**. This keeps the same `/exec` URL. Execute as **Me**, access **Anyone**.
-4. Open the `/exec` URL in a browser; it should return `{"ok":true,"service":"os-ingestion",…}`.
-
-**Front-end**
-Push to the branch Vercel deploys from. No build settings needed. `GAS_URL` lives at the top of `app.js`.
-
-When you change `sw.js` or the list of cached files, bump `VERSION` in `sw.js`. Other asset edits are fetched in the background and appear on the next launch.
-
-**iPhone**
-Open the Vercel URL in Safari → Share → Add to Home Screen. Launch it from the Home Screen icon.
-
-## iOS notes
-
-- **Dictation** (Web Speech API) needs a network on iOS; Apple does the recognition server-side. Offline, use the keyboard's mic. Captures still queue.
-- **Paste:** iOS only fires paste events into a focused text field. The Paste button uses the clipboard API (iOS shows its own "Paste" confirmation) and is the reliable one-tap path for screenshots.
-- **Background sync** isn't available on iOS. The outbox flushes when the app opens, comes back to the foreground, or regains a connection.
+- **Why there's no `doOptions`:** Apps Script never passes `OPTIONS` requests to the script, so the PWA sends a "simple" `text/plain` request instead.
+- **Why the key is in the body:** Apps Script can't read request headers.
+- **Why no Tailwind:** the CSP allows only same-origin scripts and styles, and the hand-written iOS design system in `styles.css` already covers the UI. A CDN framework would mean loosening the CSP.
+- **iOS:** web dictation needs a network (Apple does the recognition), there's no background sync, and the PWA can't appear in the Share Sheet. That's why the Shortcuts carry most of the load.
+- **Origin:** started from [apps-script-mobile-data-ingestion](https://github.com/James-Bonaguro/apps-script-mobile-data-ingestion), kept as the `upstream` remote with pushes disabled. That project is separate and unchanged.
