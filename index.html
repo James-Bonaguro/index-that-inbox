@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>OS Ingestion</title>
-    <meta name="description" content="Capture text, voice and screenshots straight into Google Workspace.">
+    <title>Index That Inbox</title>
+    <meta name="description" content="Capture posts, links, screenshots and thoughts into the Index That inbox.">
 
     <!-- iOS Home Screen: full-screen, no Safari UI, content under the status bar -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Ingest">
+    <meta name="apple-mobile-web-app-title" content="Inbox">
     <meta name="format-detection" content="telephone=no">
     <meta name="theme-color" content="#000000">
     <meta name="color-scheme" content="dark">
@@ -35,10 +35,15 @@
 <body>
     <div class="app" id="app">
         <header class="topbar">
-            <h1 class="title">Ingest</h1>
-            <button type="button" class="pill" id="statusPill" aria-live="polite">
-                <span class="pill-dot"></span><span class="pill-label">Ready</span>
-            </button>
+            <h1 class="title">Inbox</h1>
+            <div class="topbar-actions">
+                <button type="button" class="pill" id="statusPill" aria-live="polite">
+                    <span class="pill-dot"></span><span class="pill-label">Ready</span>
+                </button>
+                <button type="button" class="icon-btn" id="setupBtn" aria-label="Webhook and key settings">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+                </button>
+            </div>
         </header>
 
         <div class="toast" id="toast" role="status" aria-live="polite" hidden>
@@ -52,7 +57,7 @@
                     <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/><path d="M3.5 14.5h4l1.5 2.5h6l1.5-2.5h4"/><path d="M3.5 14.5V19a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4.5"/></svg>
                 </div>
                 <p class="empty-title">Ready to capture</p>
-                <p class="empty-sub">Type, dictate, or paste a screenshot.<br>Works offline — captures sync when you're back online.</p>
+                <p class="empty-sub">Type, dictate, or paste a screenshot.<br>Works offline. Captures sync when you're back online.</p>
             </div>
             <ol class="list" id="list"></ol>
         </main>
@@ -93,6 +98,22 @@
         </footer>
     </div>
 
-    <noscript><p class="noscript">OS Ingestion needs JavaScript enabled.</p></noscript>
+    <dialog class="sheet" id="setupSheet" aria-labelledby="setupTitle">
+        <form class="sheet-body" id="setupForm" autocomplete="off" novalidate>
+            <h2 class="sheet-title" id="setupTitle">Connect your inbox</h2>
+            <p class="sheet-sub">Saved only on this iPhone. Use the same web app URL and key as your Shortcuts.</p>
+            <label class="sheet-label" for="endpointInput">Web app URL</label>
+            <input class="sheet-input" id="endpointInput" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec">
+            <label class="sheet-label" for="keyInput">Key</label>
+            <input class="sheet-input" id="keyInput" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="INGEST_KEY from Apps Script">
+            <p class="sheet-error" id="setupError" role="alert" hidden></p>
+            <div class="sheet-actions">
+                <button type="button" class="sheet-btn" id="setupCancel">Cancel</button>
+                <button type="submit" class="sheet-btn sheet-btn-primary">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <noscript><p class="noscript">Index That Inbox needs JavaScript enabled.</p></noscript>
 </body>
 </html>

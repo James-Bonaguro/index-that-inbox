@@ -1,7 +1,23 @@
 'use strict';
 
-// Google Apps Script web app (apps-script/Code.gs). Redeploying as a new version keeps this URL.
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwlb41Tjx_VEUJ8_mGbxP8ypPXnANwhrmc14BArEKOQZYWeQlhG8iHhsJxhYKO3T8xi8g/exec';
+// Pure helpers (unit-tested in tests/app-type.test.js, which loads everything above the @pure-end marker).
+
+/** Same rule as parseCapture_ in Code.gs: any image wins; text that is a single URL is a link. */
+function captureType(text, hasImage) {
+    if (hasImage) return 'image';
+    return /^https?:\/\/\S+$/i.test(String(text || '').trim()) ? 'url' : 'text';
+}
+
+/** The CSP only allows Apps Script hosts, so only a deployed web app (/exec) URL is accepted. */
+function isWebhookUrl(value) {
+    return /^https:\/\/script\.google\.com\/(?:a\/macros\/[^/\s]+|macros)\/s\/[\w-]+\/exec$/.test(String(value || '').trim());
+}
+
+// @pure-end
+
+// The webhook URL and key live only on this device (entered once in the setup sheet), never in the repo.
+const ENDPOINT_KEY = 'ingest.endpoint';
+const SECRET_KEY = 'ingest.key';
 
 const MAX_IMAGE_EDGE = 1600;           // px; keeps screenshot text legible
 const MAX_IMAGE_DATA_URL = 1_500_000;  // chars (~1.1 MB of JPEG); far below Apps Script limits
@@ -18,7 +34,33 @@ const els = {
     form: $('form'), input: $('input'), fileInput: $('fileInput'),
     photoBtn: $('photoBtn'), pasteBtn: $('pasteBtn'), micBtn: $('micBtn'), sendBtn: $('sendBtn'),
     attachment: $('attachment'), attachmentImg: $('attachmentImg'), removeImage: $('removeImage'),
+    setupBtn: $('setupBtn'), setupSheet: $('setupSheet'), setupForm: $('setupForm'),
+    endpointInput: $('endpointInput'), keyInput: $('keyInput'), setupError: $('setupError'), setupCancel: $('setupCancel'),
 };
+
+// ---------------------------------------------------------------------------
+// Settings: webhook URL + key, kept in localStorage on this device only.
+// ---------------------------------------------------------------------------
+
+const memorySettings = {};
+
+function getSetting(name) {
+    if (name in memorySettings) return memorySettings[name];
+    try {
+        return localStorage.getItem(name) || '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function setSetting(name, value) {
+    memorySettings[name] = value;
+    try {
+        localStorage.setItem(name, value);
+    } catch (_) { /* private mode: kept in memory until the app closes */ }
+}
+
+const isConfigured = () => isWebhookUrl(getSetting(ENDPOINT_KEY)) && Boolean(getSetting(SECRET_KEY));
 
 const ICONS = {
     clock: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -65,7 +107,7 @@ const store = (() => {
             console.warn('IndexedDB unavailable, using memory', err);
             if (!warned) {
                 warned = true;
-                toast('Storage unavailable — keep the app open until captures sync.');
+                toast('Storage unavailable. Keep the app open until captures sync.');
             }
             return fallback();
         }
@@ -210,7 +252,7 @@ function statusElement(item) {
         el.href = item.fileUrl || item.docUrl;
         el.target = '_blank';
         el.rel = 'noopener';
-        el.setAttribute('aria-label', item.fileUrl ? 'Synced — open image in Drive' : 'Synced — open Doc');
+        el.setAttribute('aria-label', item.fileUrl ? 'Synced. Open image in Drive' : 'Synced. Open the inbox Doc');
     } else if (item.status === 'failed') {
         el = document.createElement('button');
         el.type = 'button';
@@ -291,7 +333,10 @@ function updatePill() {
     const failed = all.filter((i) => i.status === 'failed').length;
     let state;
     let label;
-    if (!navigator.onLine) {
+    if (!isConfigured()) {
+        state = 'failed';
+        label = pending ? `Set up · ${pending} waiting` : 'Set up';
+    } else if (!navigator.onLine) {
         state = 'offline';
         label = pending ? `Offline · ${pending} queued` : 'Offline';
     } else if (failed) {
@@ -313,18 +358,22 @@ function updatePill() {
 // ---------------------------------------------------------------------------
 
 async function send(item) {
+    const type = captureType(item.text, Boolean(item.image));
     const payload = {
         id: item.id,
         createdAt: item.createdAt,
-        text: item.text,
+        type,
+        text: type === 'url' ? '' : item.text,
+        url: type === 'url' ? item.text.trim() : null,
         image: item.image ? { data: item.image.split(',')[1], mimeType: 'image/jpeg' } : null,
-        source: 'ios-pwa',
+        source: 'pwa',
+        key: getSetting(SECRET_KEY),
     };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
         // text/plain keeps this a CORS "simple request": no preflight, which Apps Script cannot answer.
-        const res = await fetch(GAS_URL, {
+        const res = await fetch(getSetting(ENDPOINT_KEY), {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload),
@@ -339,7 +388,7 @@ async function send(item) {
             return { ok: false, retryable: res.status >= 500 || res.status === 429, error: `Unexpected response (HTTP ${res.status})` };
         }
         if (data.ok) return data;
-        return { ok: false, retryable: Boolean(data.retryable), error: data.error || 'Rejected by server' };
+        return { ok: false, retryable: Boolean(data.retryable), code: data.code, error: data.error || 'Rejected by server' };
     } catch (err) {
         return { ok: false, retryable: true, error: err.name === 'AbortError' ? 'Timed out' : 'Network unavailable' };
     } finally {
@@ -349,6 +398,10 @@ async function send(item) {
 
 async function sync() {
     if (syncing) return;
+    if (!isConfigured()) {
+        updatePill(); // captures stay queued until the setup sheet is filled in
+        return;
+    }
     syncing = true;
     clearTimeout(retryTimer);
     try {
@@ -375,6 +428,14 @@ async function sync() {
                 renderCard(next);
                 retryTimer = setTimeout(sync, retryDelay);
                 retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY_MS);
+                break;
+            } else if (result.code === 'unauthorized') {
+                // Every other capture would be rejected too, so stop here; saving a new key re-queues this one.
+                next.status = 'failed';
+                next.error = 'Unauthorized';
+                await store.put(next);
+                renderCard(next);
+                toast('Key missing or wrong.', { action: 'Set key', onAction: openSetupSheet, duration: 0 });
                 break;
             } else {
                 next.status = 'failed';
@@ -537,12 +598,12 @@ function toggleDictation() {
     }
     if (!SpeechRecognition) {
         els.input.focus();
-        toast('Dictation isn\'t available here — use the mic on your keyboard.');
+        toast('Dictation isn\'t available here. Use the mic on your keyboard.');
         return;
     }
     if (!navigator.onLine) {
         els.input.focus();
-        toast('Dictation needs a connection. Use the keyboard mic — captures still save offline.');
+        toast('Dictation needs a connection. Use the keyboard mic. Captures still save offline.');
         return;
     }
 
@@ -606,6 +667,47 @@ function trackViewport() {
 }
 
 // ---------------------------------------------------------------------------
+// Setup sheet: webhook URL + key, asked for once and editable from the gear button.
+// ---------------------------------------------------------------------------
+
+function openSetupSheet() {
+    hideToast();
+    els.endpointInput.value = getSetting(ENDPOINT_KEY);
+    els.keyInput.value = getSetting(SECRET_KEY);
+    els.setupError.hidden = true;
+    if (!els.setupSheet.open) els.setupSheet.showModal();
+}
+
+function saveSetup() {
+    const endpoint = els.endpointInput.value.trim();
+    const key = els.keyInput.value.trim();
+    let problem = '';
+    if (!isWebhookUrl(endpoint)) problem = 'Paste the Apps Script web app URL. It starts with https://script.google.com and ends with /exec.';
+    else if (!key) problem = 'Enter the key you saved as INGEST_KEY in Apps Script.';
+    if (problem) {
+        els.setupError.textContent = problem;
+        els.setupError.hidden = false;
+        return;
+    }
+
+    setSetting(ENDPOINT_KEY, endpoint);
+    setSetting(SECRET_KEY, key);
+    els.setupSheet.close();
+
+    for (const item of items.values()) {
+        if (item.status === 'failed' && item.error === 'Unauthorized') {
+            item.status = 'queued';
+            store.put(item);
+            renderCard(item);
+        }
+    }
+    retryDelay = 5_000;
+    updatePill();
+    sync();
+    toast('Saved on this iPhone.');
+}
+
+// ---------------------------------------------------------------------------
 // Service worker
 // ---------------------------------------------------------------------------
 
@@ -648,9 +750,19 @@ function bindEvents() {
     els.removeImage.addEventListener('click', clearAttachment);
     els.micBtn.addEventListener('click', toggleDictation);
     els.pill.addEventListener('click', () => {
+        if (!isConfigured()) {
+            openSetupSheet();
+            return;
+        }
         for (const item of items.values()) if (item.status === 'failed') retry(item.id);
         sync();
     });
+    els.setupBtn.addEventListener('click', openSetupSheet);
+    els.setupForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveSetup();
+    });
+    els.setupCancel.addEventListener('click', () => els.setupSheet.close());
 
     // Global paste: screenshots pasted anywhere in the app (iPad keyboards, long-press Paste in the field).
     document.addEventListener('paste', (e) => {
@@ -691,6 +803,7 @@ async function init() {
     updatePill();
 
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    if (!isConfigured()) openSetupSheet();
     sync();
 }
 

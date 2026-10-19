@@ -1,4 +1,4 @@
-/* OS Ingestion — iOS dark design system. No external fonts or frameworks. */
+/* Index That Inbox: iOS dark design system. No external fonts or frameworks. */
 
 :root {
     --bg: #000;
@@ -82,6 +82,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); o
 }
 
 .title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+.topbar-actions { display: flex; align-items: center; gap: 2px; margin-right: -8px; }
 
 .pill {
     display: inline-flex;
@@ -351,6 +352,60 @@ textarea::placeholder { color: var(--label-3); }
 .send-btn:not(:disabled):active .send-disc { transform: scale(0.85); }
 
 .noscript { padding: 40px 20px; text-align: center; color: var(--label-2); }
+
+/* ---------- Setup sheet ---------- */
+
+/* Anchored near the top so the iOS keyboard never covers the inputs. */
+.sheet {
+    width: min(calc(100% - 24px), 440px);
+    max-height: calc(100% - var(--safe-top) - 24px);
+    margin: calc(var(--safe-top) + 64px) auto auto;
+    padding: 0;
+    border: 0.5px solid var(--separator);
+    border-radius: 24px;
+    background: var(--surface);
+    color: var(--label);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.sheet[open] { animation: pop-in 0.4s var(--spring); }
+.sheet::backdrop { background: rgba(0, 0, 0, 0.55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+
+.sheet-body { display: flex; flex-direction: column; padding: 22px 20px 16px; }
+.sheet-title { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+.sheet-sub { margin: 0 0 18px; font-size: 15px; line-height: 1.4; color: var(--label-2); }
+.sheet-label { margin: 0 0 6px 4px; font-size: 13px; font-weight: 600; color: var(--label-2); }
+
+.sheet-input {
+    width: 100%;
+    min-height: var(--tap);
+    margin-bottom: 14px;
+    padding: 0 14px;
+    border: 0.5px solid transparent;
+    border-radius: 12px;
+    background: var(--fill);
+    color: var(--label);
+    font: inherit;
+    font-size: 17px; /* >= 16px stops iOS zooming on focus */
+    outline: none;
+    transition: border-color 0.2s;
+}
+.sheet-input:focus { border-color: rgba(10, 132, 255, 0.6); }
+.sheet-input::placeholder { color: var(--label-3); }
+
+.sheet-error { margin: -4px 4px 14px; font-size: 14px; line-height: 1.4; color: var(--red); }
+
+.sheet-actions { display: flex; gap: 10px; margin-top: 4px; }
+.sheet-btn {
+    flex: 1;
+    min-height: var(--tap);
+    border-radius: 14px;
+    background: var(--fill);
+    font-weight: 600;
+    transition: transform 0.2s var(--ease-out), background-color 0.2s;
+}
+.sheet-btn:active { transform: scale(0.97); background: var(--fill-pressed); }
+.sheet-btn-primary { background: var(--blue); color: #fff; }
+.sheet-btn-primary:active { background: #0070e0; }
 
 /* ---------- Larger screens ---------- */
 

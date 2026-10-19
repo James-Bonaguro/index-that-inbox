@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "OS Ingestion",
-  "short_name": "Ingest",
-  "description": "Capture text, voice and screenshots straight into Google Workspace.",
+  "name": "Index That Inbox",
+  "short_name": "Inbox",
+  "description": "Capture posts, links, screenshots and thoughts into the Index That inbox.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
