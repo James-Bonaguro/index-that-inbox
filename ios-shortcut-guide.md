@@ -7,6 +7,8 @@ Two Shortcuts send captures straight to the Index That Inbox. You never open an 
 | **Index That** | Instagram and X posts, links, Safari pages, screenshots, photos, selected text | Share button → Index That |
 | **Index Thought** | A thought, spoken | Double-tap the back of the phone, the Action Button, or "Hey Siri, Index Thought" |
 
+**Fastest install:** on the Mac, double-click the two files in `shortcuts/`, choose Add Shortcut and paste your key when asked; iCloud syncs them to the iPhone. Then only Back Tap (below) is left to set on the phone. The rest of this guide shows how they're built, for repairs.
+
 Both send to the same Apps Script web app as the PWA. Each capture lands in the inbox Doc under a heading like `[LINK] Instagram · Mon, Oct 19, 2026 at 3:05 PM`.
 
 ## Before you start

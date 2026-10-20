@@ -64,7 +64,7 @@ Later code changes: **Deploy** → **Manage deployments** → edit → **Version
 
 **2. iPhone**
 
-1. Build the two Shortcuts with `ios-shortcut-guide.md`.
+1. Install the two Shortcuts: double-click `shortcuts/Index That.shortcut` and `shortcuts/Index Thought.shortcut` on the Mac, choose Add Shortcut, and paste your key when asked. iCloud syncs them to the iPhone. To rebuild them for a new webhook URL: `python3 shortcuts/build.py <exec URL>`. `ios-shortcut-guide.md` explains every step if you ever need to build or repair one by hand.
 2. Open the Vercel URL in Safari → Share → **Add to Home Screen**. Launch it from the icon, then paste the `/exec` URL and the key into the setup sheet. Edit them later with the gear button.
 
 **3. Front-end deploy**
