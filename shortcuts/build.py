@@ -129,6 +129,16 @@ def share_sheet(webhook):
                  field('text', text('', SHORTCUT_INPUT))] + common)
     f.otherwise(links)
 
+    # Text before images: Shortcuts will happily render shared text into a picture of the text.
+    # "ext" matches both "Text" and "Rich text" type names.
+    kind = f.add('getitemtype', WFInput=attachment(SHORTCUT_INPUT))
+    is_text = new_id()
+    f.actions.append(action('conditional', GroupingIdentifier=is_text, WFControlFlowMode=0, WFCondition=99,
+                            WFConditionalActionString='ext',
+                            WFInput={'Type': 'Variable', 'Variable': attachment(output(kind, 'Type'))}))
+    f.post(url, [field('type', text('text')), field('text', text('', SHORTCUT_INPUT))] + common)
+    f.otherwise(is_text)
+
     images = f.add('detect.images', WFInput=attachment(SHORTCUT_INPUT))
     pics = f.if_has_value(output(images, 'Images'))
     first_img = f.add('getitemfromlist', WFItemSpecifier='First Item', WFInput=attachment(output(images, 'Images')))
@@ -145,6 +155,7 @@ def share_sheet(webhook):
 
     f.post(url, [field('type', text('text')), field('text', text('', SHORTCUT_INPUT))] + common)
     f.end_if(pics)
+    f.end_if(is_text)
     reply = f.end_if(links)
 
     f.confirm(reply)
@@ -172,7 +183,14 @@ def workflow(flow, share):
         'WFWorkflowMinimumClientVersion': 900,
         'WFWorkflowMinimumClientVersionString': '900',
         'WFWorkflowIcon': {'WFWorkflowIconStartColor': 4282601983, 'WFWorkflowIconGlyphNumber': 59511},
-        'WFWorkflowImportQuestions': [],
+        # Import asks for the key and fills the second action (index 1), so it is never stored in these files.
+        'WFWorkflowImportQuestions': [{
+            'ActionIndex': 1,
+            'Category': 'Parameter',
+            'ParameterKey': 'WFTextActionText',
+            'Text': 'Paste your Index That key (INGEST_KEY)',
+            'DefaultValue': '',
+        }],
         'WFWorkflowOutputContentItemClasses': [],
         'WFWorkflowTypes': ['ActionExtension'] if share else [],
         'WFWorkflowInputContentItemClasses': (
