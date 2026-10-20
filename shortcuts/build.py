@@ -4,8 +4,8 @@
     python3 shortcuts/build.py <webhook /exec URL>
 
 Writes "Index That.shortcut" (Share Sheet) and "Index Thought.shortcut" (voice) next to this
-script, signed with macOS `shortcuts sign`. Each contains a "PASTE YOUR KEY HERE" text action
-that you replace with your INGEST_KEY after importing. The key never goes into these files.
+script, signed with macOS `shortcuts sign`. Importing asks for your INGEST_KEY and fills it into
+the second action ("PASTE YOUR KEY HERE" until then). The key never goes into these files.
 
 lean: hand-built Shortcuts plist (an undocumented Apple format). If an action imports blank
 after an iOS update, rebuild that step by hand from ios-shortcut-guide.md.
