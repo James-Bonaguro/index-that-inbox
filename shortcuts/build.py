@@ -30,6 +30,7 @@ def output(action_uuid, name):
 
 
 SHORTCUT_INPUT = {'Type': 'ExtensionInput'}
+REPLY = {'Type': 'Variable', 'VariableName': 'Reply'}
 
 
 def attachment(ref):
@@ -92,6 +93,12 @@ class Flow:
                         WFJSONValues={'Value': {'WFDictionaryFieldValueItems': items},
                                       'WFSerializationType': 'WFDictionaryFieldValue'})
 
+    def post_and_keep(self, url_ref, items):
+        """POST, then store the reply in the named variable Reply. Nested If blocks don't pass
+        a branch's output through reliably, so the confirmation reads this variable instead."""
+        reply = self.post(url_ref, items)
+        self.add('setvariable', WFVariableName='Reply', WFInput=attachment(output(reply, 'Contents of URL')))
+
     def confirm(self, reply_ref):
         """Notification: "Indexed [TAG]" when the reply has a tag, otherwise "Not saved: <error>"."""
         tag = self.add('getvalueforkey', WFGetDictionaryValueType='Value', WFDictionaryKey='tag',
@@ -123,7 +130,7 @@ def share_sheet(webhook):
     links = f.if_has_value(output(urls, 'URLs'))
     first_url = f.add('getitemfromlist', WFItemSpecifier='First Item', WFInput=attachment(output(urls, 'URLs')))
     name = f.add('getitemname', WFInput=attachment(SHORTCUT_INPUT))
-    f.post(url, [field('type', text('url')),
+    f.post_and_keep(url, [field('type', text('url')),
                  field('url', text('', output(first_url, 'Item from List'))),
                  field('title', text('', output(name, 'Name'))),
                  field('text', text('', SHORTCUT_INPUT))] + common)
@@ -136,7 +143,7 @@ def share_sheet(webhook):
     f.actions.append(action('conditional', GroupingIdentifier=is_text, WFControlFlowMode=0, WFCondition=99,
                             WFConditionalActionString='ext',
                             WFInput={'Type': 'Variable', 'Variable': attachment(output(kind, 'Type'))}))
-    f.post(url, [field('type', text('text')), field('text', text('', SHORTCUT_INPUT))] + common)
+    f.post_and_keep(url, [field('type', text('text')), field('text', text('', SHORTCUT_INPUT))] + common)
     f.otherwise(is_text)
 
     images = f.add('detect.images', WFInput=attachment(SHORTCUT_INPUT))
@@ -148,17 +155,17 @@ def share_sheet(webhook):
                  WFInput=attachment(output(resized, 'Resized Image')))
     b64 = f.add('base64encode', WFEncodeMode='Encode', WFBase64LineBreakMode='None',
                 WFInput=attachment(output(jpeg, 'Converted Image')))
-    f.post(url, [field('type', text('image')),
+    f.post_and_keep(url, [field('type', text('image')),
                  dict_field('image', [field('data', text('', output(b64, 'Base64 Encoded'))),
                                       field('mimeType', text('image/jpeg'))])] + common)
     f.otherwise(pics)
 
-    f.post(url, [field('type', text('text')), field('text', text('', SHORTCUT_INPUT))] + common)
+    f.post_and_keep(url, [field('type', text('text')), field('text', text('', SHORTCUT_INPUT))] + common)
     f.end_if(pics)
     f.end_if(is_text)
-    reply = f.end_if(links)
+    f.end_if(links)
 
-    f.confirm(reply)
+    f.confirm(REPLY)
     return workflow(f, share=True)
 
 
