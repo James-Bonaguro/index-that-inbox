@@ -4,6 +4,8 @@ A private capture inbox for the Index That Instagram brand. Anything that catche
 
 No servers to run, no paid services, no dependencies, no build step.
 
+**Day-to-day guide:** `docs/workflow.html` (also published as a private Claude artifact: https://claude.ai/artifact/VF7bckinYrbTuqYYffeaii).
+
 ## How it fits together
 
 | Piece | Role |

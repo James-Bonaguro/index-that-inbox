@@ -1,0 +1,228 @@
+<title>Index That Capture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow reading column; capture moves as a 3-up row that stacks on phones; reference tables below. */
+:root {
+  --bg: #f4f7f7;
+  --surface: #ffffff;
+  --ink: #12201f;
+  --muted: #566664;
+  --line: #d6e0df;
+  --accent: #0b6e69;
+  --accent-soft: #e0f0ee;
+  --tag-note: #3b5bdb;
+  --tag-link: #0b6e69;
+  --tag-asset: #b0541a;
+  --warn-bg: #fff4e5;
+  --warn-ink: #7a3f00;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1615; --surface: #152120; --ink: #e4eeed; --muted: #95a8a6; --line: #263634;
+    --accent: #4fc3b9; --accent-soft: #17302e; --tag-note: #8ea6ff; --tag-link: #4fc3b9; --tag-asset: #f0a06a;
+    --warn-bg: #2b2112; --warn-ink: #f3c98b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1615; --surface: #152120; --ink: #e4eeed; --muted: #95a8a6; --line: #263634;
+  --accent: #4fc3b9; --accent-soft: #17302e; --tag-note: #8ea6ff; --tag-link: #4fc3b9; --tag-asset: #f0a06a;
+  --warn-bg: #2b2112; --warn-ink: #f3c98b; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.55 var(--body);
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 760px; margin: 0 auto; display: grid; gap: 44px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 6vw, 2.75rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+h2 { font-size: 1.3rem; font-weight: 600; letter-spacing: -0.01em; }
+p { margin: 0; max-width: 65ch; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 14px; }
+.lede { color: var(--muted); font-size: 1.05rem; }
+
+header { display: grid; gap: 12px; }
+
+/* Capture moves */
+.moves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.move { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 10px; align-content: start; }
+.move h3 { margin: 0; font: 600 1.05rem/1.3 var(--display); }
+.move .when { color: var(--muted); font-size: 0.9rem; }
+.move ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: 0.95rem; }
+.taps { font: 500 0.75rem/1 var(--mono); color: var(--accent); background: var(--accent-soft); padding: 5px 8px; border-radius: 999px; justify-self: start; }
+
+/* Tags */
+.tag { font: 500 0.85rem/1 var(--mono); white-space: nowrap; }
+.tag.note { color: var(--tag-note); } .tag.link { color: var(--tag-link); } .tag.asset { color: var(--tag-asset); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.sample { font: 500 0.82rem/1.5 var(--mono); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+
+/* Weekly loop */
+.loop { counter-reset: step; list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.loop li { counter-increment: step; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 10px; align-items: start; }
+.loop li::before { content: counter(step); font: 600 0.9rem/2rem var(--display); text-align: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.prompt { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.prompt p { font-size: 0.95rem; }
+.copy { justify-self: start; font: 600 0.85rem/1 var(--body); color: #fff; background: var(--accent); border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; }
+:root[data-theme="dark"] .copy { color: var(--bg); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .copy { color: var(--bg); } }
+
+/* Fix it */
+.check { background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.check strong { font-family: var(--display); }
+.check a { color: inherit; font-weight: 600; }
+dl.fixes { margin: 0; display: grid; gap: 12px; }
+dl.fixes div { display: grid; gap: 2px; }
+dt { font-weight: 600; }
+dd { margin: 0; color: var(--muted); }
+
+.links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; margin: 0; padding: 0; list-style: none; }
+.links li { min-width: 0; }
+.links span { display: block; color: var(--muted); font-size: 0.85rem; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 680px) {
+  .moves { grid-template-columns: minmax(0, 1fr); }
+  .links { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<main class="page">
+  <header>
+    <span class="eyebrow">Index That · private</span>
+    <h1>Index That Capture</h1>
+    <p class="lede">See something worth keeping, send it to the inbox in two taps, and let Claude turn the pile into posts once a week. Everything lands in one private Google Doc.</p>
+  </header>
+
+  <section aria-labelledby="capture">
+    <h2 id="capture">Capture it</h2>
+    <div class="moves">
+      <article class="move">
+        <span class="taps">2 taps</span>
+        <h3>Share it</h3>
+        <p class="when">A post, reel, tweet, article, screenshot or selected text.</p>
+        <ol>
+          <li>Tap <b>Share</b>.</li>
+          <li>Tap <b>Index That</b>.</li>
+          <li>Wait for <b>Indexed</b>.</li>
+        </ol>
+      </article>
+      <article class="move">
+        <span class="taps">1 move</span>
+        <h3>Say it</h3>
+        <p class="when">An idea, a hook, a line you don't want to lose.</p>
+        <ol>
+          <li>Double-tap the back of the phone (or say "Index Thought").</li>
+          <li>Talk, then pause.</li>
+          <li>Wait for <b>Indexed</b>.</li>
+        </ol>
+      </article>
+      <article class="move">
+        <span class="taps">Backup</span>
+        <h3>Type it</h3>
+        <p class="when">No signal, or you want to add a photo with a note.</p>
+        <ol>
+          <li>Open <b>Inbox</b> on the Home Screen.</li>
+          <li>Type, paste or add a photo.</li>
+          <li>Tap send. It syncs when you're back online.</li>
+        </ol>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="lands">
+    <h2 id="lands">What lands in the Doc</h2>
+    <p>Every capture gets a heading with a tag, where it came from, and when.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tag</th><th>Means</th><th>From</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag note">[NOTE]</span></td><td>A thought or plain text</td><td>Voice, Note</td></tr>
+          <tr><td><span class="tag link">[LINK]</span></td><td>A link, or text that has one</td><td>Instagram, X, TikTok, YouTube, LinkedIn, Threads, Reddit, any site</td></tr>
+          <tr><td><span class="tag asset">[ASSET]</span></td><td>An image, saved in the Index That Inbox folder</td><td>Screenshot</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="sample" role="img" aria-label="Example entry">[LINK] Instagram · Tue, Oct 20, 2026 at 9:14 AM
+Reel title or "Instagram post"
+https://www.instagram.com/reel/…
+steal this hook: three-second cold open</div>
+  </section>
+
+  <section aria-labelledby="use">
+    <h2 id="use">Use it, once a week</h2>
+    <ol class="loop">
+      <li><p><b>Skim the Doc</b> on Sunday. Delete anything that no longer sparks.</p></li>
+      <li><p><b>Ask Claude</b> with the prompt below. It reads the Doc and comes back with ideas.</p></li>
+      <li><p><b>Pick three</b> to make this week. Leave the rest; the inbox keeps them.</p></li>
+    </ol>
+    <div class="prompt">
+      <p id="weeklyPrompt">Read my Index That Inbox Google Doc (ID 1eAaWLjEZ37Mkoh-rfRr5e2Q9M-3CNYKw0-_GQKhqnLw) and look at this week's entries. Group them by theme, name the hooks and formats that keep showing up, and give me five post ideas for Index That with a one-line hook each. Note which ideas came from which entries.</p>
+      <button class="copy" id="copyPrompt" type="button">Copy prompt</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="fix">
+    <h2 id="fix">If something doesn't land</h2>
+    <div class="check">
+      <strong>First, check whether it arrived.</strong>
+      <span>Open the <a href="https://script.google.com/home/projects/1dll2b7ER2QQ8RkBChBxElSAki_5Heed1-05_3wAHQBjk5Cv54fzhv5uA/executions" target="_blank" rel="noopener">webhook's execution log</a>. Each capture adds a <b>doPost</b> row. No new row means the phone never sent it.</span>
+    </div>
+    <dl class="fixes">
+      <div><dt>"Not saved: Unauthorized"</dt><dd>The key in the Shortcut doesn't match. Re-import the Shortcut and paste the key from Apple Passwords.</dd></div>
+      <div><dt>No notification, no new row</dt><dd>Open Shortcuts on the iPhone and check that both Shortcuts are there. If not, wait a minute for iCloud, or re-import them on the Mac.</dd></div>
+      <div><dt>Index That missing from the Share menu</dt><dd>Share → scroll the app row to the end → More → Edit → add Index That to Favorites.</dd></div>
+      <div><dt>Back Tap does nothing</dt><dd>Settings → Accessibility → Touch → Back Tap → Double Tap → Index Thought. Works only while the phone is unlocked.</dd></div>
+      <div><dt>Inbox app stuck on "Key needed"</dt><dd>Tap the gear and paste the key again.</dd></div>
+    </dl>
+  </section>
+
+  <section aria-labelledby="where">
+    <h2 id="where">Where everything lives</h2>
+    <ul class="links">
+      <li><span>The inbox</span><a href="https://docs.google.com/document/d/1eAaWLjEZ37Mkoh-rfRr5e2Q9M-3CNYKw0-_GQKhqnLw/edit" target="_blank" rel="noopener">Index That Inbox Doc</a></li>
+      <li><span>Images</span><a href="https://drive.google.com/drive/folders/1lTQOoyXYeP_EW9abngzElwkPo5-3sCDr" target="_blank" rel="noopener">Index That Inbox folder</a></li>
+      <li><span>Backup app</span><a href="https://index-that-inbox.vercel.app" target="_blank" rel="noopener">index-that-inbox.vercel.app</a></li>
+      <li><span>Code and Shortcut files</span><a href="https://github.com/James-Bonaguro/index-that-inbox" target="_blank" rel="noopener">GitHub repo (private)</a></li>
+      <li><span>Your key</span>Apple Passwords → "Index That Inbox key"</li>
+      <li><span>Webhook</span><a href="https://script.google.com/home/projects/1dll2b7ER2QQ8RkBChBxElSAki_5Heed1-05_3wAHQBjk5Cv54fzhv5uA/edit" target="_blank" rel="noopener">Apps Script project</a></li>
+    </ul>
+  </section>
+
+  <footer>Private to james.bonaguro@gmail.com. Nothing here is shared. Set up October 19 to 20, 2026.</footer>
+</main>
+
+<script>
+  document.getElementById('copyPrompt').addEventListener('click', function () {
+    var btn = this;
+    var text = document.getElementById('weeklyPrompt').textContent;
+    function done(label) { btn.textContent = label; setTimeout(function () { btn.textContent = 'Copy prompt'; }, 1800); }
+    function selectIt() {
+      var range = document.createRange();
+      range.selectNodeContents(document.getElementById('weeklyPrompt'));
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      done('Selected, press Copy');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done('Copied'); }, selectIt);
+    } else { selectIt(); }
+  });
+</script>
