@@ -24,7 +24,7 @@ Private capture inbox for Index That, James's own private Instagram brand. It is
 
 ## Rules
 
-- Ask James before deploying (Apps Script, Vercel), pushing, or changing anything in Google. Nothing gets permanently deleted.
+- Small PWA fixes (app.js, index.html, styles.css, sw.js) that pass the tests can be pushed to main without asking; Vercel deploys them. Ask James first for anything else: Apps Script changes or deploys, anything in Google, bigger features. Nothing gets permanently deleted.
 - No npm dependencies, no build step. Keep the CSP in `vercel.json` strict.
 - Plain language, no em dashes in copy James reads.
 - After changing `Code.gs`, run the tests, then James redeploys: Manage deployments → edit → New version.
