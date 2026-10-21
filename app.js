@@ -32,8 +32,8 @@ const els = {
     app: $('app'), feed: $('feed'), list: $('list'), empty: $('empty'),
     pill: $('statusPill'), toast: $('toast'),
     form: $('form'), input: $('input'), fileInput: $('fileInput'),
-    photoBtn: $('photoBtn'), pasteBtn: $('pasteBtn'), micBtn: $('micBtn'), sendBtn: $('sendBtn'),
-    attachment: $('attachment'), attachmentImg: $('attachmentImg'), removeImage: $('removeImage'),
+    photoBtn: $('photoBtn'), micBtn: $('micBtn'), sendBtn: $('sendBtn'),
+    attachments: $('attachments'), storageWarning: $('storageWarning'),
     setupBtn: $('setupBtn'), setupSheet: $('setupSheet'), setupForm: $('setupForm'),
     endpointInput: $('endpointInput'), keyInput: $('keyInput'), setupError: $('setupError'), setupCancel: $('setupCancel'),
 };
@@ -132,7 +132,7 @@ const store = (() => {
 
 const items = new Map();   // id → capture
 const cards = new Map();   // id → <li>
-let attachment = null;     // { dataUrl, thumbUrl }
+let attachments = [];      // [{ id, dataUrl, thumbUrl }] waiting in the composer
 let syncing = false;
 let retryDelay = 5_000;
 let retryTimer = null;
@@ -481,7 +481,7 @@ async function prune() {
 // ---------------------------------------------------------------------------
 
 function hasContent() {
-    return Boolean(els.input.value.trim() || attachment);
+    return Boolean(els.input.value.trim() || attachments.length);
 }
 
 function updateComposer() {
@@ -506,25 +506,58 @@ function setText(value) {
     updateComposer();
 }
 
-async function attachImage(blob) {
-    if (!blob || !blob.type.startsWith('image/')) return;
+const MAX_ATTACHMENTS = 10;
+
+/** Compress and queue one or more images (photo picker or paste) in the composer. */
+async function attachImages(blobs) {
+    const images = [...blobs].filter((b) => b && b.type.startsWith('image/'));
+    if (!images.length) return;
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (images.length > room) toast(`Up to ${MAX_ATTACHMENTS} photos at a time.`);
     els.sendBtn.disabled = true;
     try {
-        attachment = await compressImage(blob);
-        els.attachmentImg.src = attachment.thumbUrl;
-        els.attachment.hidden = false;
-    } catch (err) {
-        console.error('Image processing failed', err);
-        toast("Couldn't read that image.");
+        for (const blob of images.slice(0, Math.max(room, 0))) {
+            try {
+                attachments.push({ id: uuid(), ...(await compressImage(blob)) });
+                renderAttachments();
+            } catch (err) {
+                console.error('Image processing failed', err);
+                toast("Couldn't read one of those images.");
+            }
+        }
     } finally {
+        els.fileInput.value = '';
         updateComposer();
     }
 }
 
-function clearAttachment() {
-    attachment = null;
-    els.attachment.hidden = true;
-    els.attachmentImg.removeAttribute('src');
+function renderAttachments() {
+    els.attachments.replaceChildren(...attachments.map((a) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'attachment';
+        const img = document.createElement('img');
+        img.className = 'attachment-img';
+        img.alt = 'Attached image';
+        img.src = a.thumbUrl;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'attachment-remove';
+        remove.setAttribute('aria-label', 'Remove image');
+        remove.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+        remove.addEventListener('click', () => {
+            attachments = attachments.filter((x) => x.id !== a.id);
+            renderAttachments();
+            updateComposer();
+        });
+        wrap.append(img, remove);
+        return wrap;
+    }));
+    els.attachments.hidden = attachments.length === 0;
+}
+
+function clearAttachments() {
+    attachments = [];
+    renderAttachments();
     els.fileInput.value = '';
     updateComposer();
 }
@@ -537,56 +570,31 @@ async function submit() {
         recognition.abort();
     }
 
-    const item = {
+    // One capture per photo; the note goes with the first. Staggered timestamps keep them in pick order.
+    const text = els.input.value.trim();
+    const now = Date.now();
+    const images = attachments.length ? attachments : [null];
+    const newItems = images.map((a, i) => ({
         id: uuid(),
-        createdAt: new Date().toISOString(),
-        text: els.input.value.trim(),
-        image: attachment ? attachment.dataUrl : null,
-        thumb: attachment ? attachment.thumbUrl : null,
+        createdAt: new Date(now + i).toISOString(),
+        text: i === 0 ? text : '',
+        image: a ? a.dataUrl : null,
+        thumb: a ? a.thumbUrl : null,
         status: 'queued',
-    };
+    }));
 
     setText('');
-    clearAttachment();
+    clearAttachments();
 
-    items.set(item.id, item);
-    renderCard(item, { animate: true });
+    for (const item of newItems) {
+        items.set(item.id, item);
+        renderCard(item, { animate: true });
+    }
     els.feed.scrollTo({ top: 0, behavior: 'smooth' });
     updatePill();
 
-    await store.put(item);
+    for (const item of newItems) await store.put(item);
     sync();
-}
-
-async function pasteFromClipboard() {
-    if (!navigator.clipboard || !navigator.clipboard.read) {
-        els.input.focus();
-        toast('Long-press the text field and tap Paste.');
-        return;
-    }
-    try {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const entry of clipboardItems) {
-            const imageType = entry.types.find((t) => t.startsWith('image/'));
-            if (imageType) {
-                await attachImage(await entry.getType(imageType));
-                return;
-            }
-        }
-        for (const entry of clipboardItems) {
-            if (entry.types.includes('text/plain')) {
-                const text = await (await entry.getType('text/plain')).text();
-                if (text) {
-                    setText(els.input.value ? `${els.input.value} ${text}` : text);
-                    return;
-                }
-            }
-        }
-        toast('Clipboard is empty.');
-    } catch (err) {
-        // NotAllowedError: the user dismissed iOS's Paste prompt.
-        if (err.name !== 'NotAllowedError') toast("Couldn't read the clipboard.");
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -675,8 +683,21 @@ function trackViewport() {
 // Setup sheet: webhook URL + key, asked for once and editable from the gear button.
 // ---------------------------------------------------------------------------
 
+// Safari's "Block All Cookies" (and some privacy modes) stop the app saving anything, so setup is lost on every launch.
+function storageWorks() {
+    try {
+        localStorage.setItem('ingest.probe', '1');
+        const ok = localStorage.getItem('ingest.probe') === '1';
+        localStorage.removeItem('ingest.probe');
+        return ok;
+    } catch (_) {
+        return false;
+    }
+}
+
 function openSetupSheet() {
     hideToast();
+    els.storageWarning.hidden = storageWorks();
     els.endpointInput.value = getSetting(ENDPOINT_KEY);
     els.keyInput.value = getSetting(SECRET_KEY);
     els.setupError.hidden = true;
@@ -751,9 +772,7 @@ function bindEvents() {
     });
 
     els.photoBtn.addEventListener('click', () => els.fileInput.click());
-    els.fileInput.addEventListener('change', () => attachImage(els.fileInput.files[0]));
-    els.pasteBtn.addEventListener('click', pasteFromClipboard);
-    els.removeImage.addEventListener('click', clearAttachment);
+    els.fileInput.addEventListener('change', () => attachImages(els.fileInput.files));
     els.micBtn.addEventListener('click', toggleDictation);
     els.pill.addEventListener('click', () => {
         if (!isConfigured() || authFailed) {
@@ -772,10 +791,10 @@ function bindEvents() {
 
     // Global paste: screenshots pasted anywhere in the app (iPad keyboards, long-press Paste in the field).
     document.addEventListener('paste', (e) => {
-        const file = [...(e.clipboardData?.items || [])].find((i) => i.kind === 'file' && i.type.startsWith('image/'));
-        if (!file) return;
+        const files = [...(e.clipboardData?.items || [])].filter((i) => i.kind === 'file' && i.type.startsWith('image/'));
+        if (!files.length) return;
         e.preventDefault();
-        attachImage(file.getAsFile());
+        attachImages(files.map((i) => i.getAsFile()));
     });
 
     window.addEventListener('online', () => {

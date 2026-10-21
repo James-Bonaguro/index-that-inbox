@@ -229,17 +229,26 @@ a.status:active, button.status:active { transform: scale(0.94); background: var(
 }
 .keyboard-open .composer { padding-bottom: 8px; }
 
+.attachments {
+    display: flex;
+    gap: 12px;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 14px 8px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.attachments::-webkit-scrollbar { display: none; }
 .attachment {
     position: relative;
-    display: inline-block;
-    margin: 4px 0 10px 8px;
+    flex-shrink: 0;
     animation: pop-in 0.4s var(--spring);
 }
-.attachment-img { display: block; height: 84px; max-width: 220px; object-fit: cover; border-radius: 12px; border: 0.5px solid var(--separator); }
+.attachment-img { display: block; height: 76px; max-width: 160px; object-fit: cover; border-radius: 12px; border: 0.5px solid var(--separator); }
 .attachment-remove {
     position: absolute;
-    top: -14px;
-    right: -14px;
+    top: -16px;
+    right: -16px;
     width: var(--tap);
     height: var(--tap);
     display: grid;
