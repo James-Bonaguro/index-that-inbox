@@ -1,6 +1,6 @@
 // Offline-first service worker. Bump VERSION when shipping changes to this file or the shell list;
 // asset edits alone are picked up in the background and show on the next launch.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `ingest-${VERSION}`;
 const SHELL = [
     '/',

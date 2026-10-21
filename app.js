@@ -288,6 +288,7 @@ function renderCard(item, { animate = false } = {}) {
             img.className = 'card-img';
             img.alt = 'Captured image';
             img.decoding = 'async';
+            img.addEventListener('load', keepPinned);
             img.src = src;
             card.append(img);
         }
@@ -314,11 +315,23 @@ function renderCard(item, { animate = false } = {}) {
     els.empty.hidden = cards.size > 0;
 }
 
+// Thread order, like Messages: oldest at the top, newest at the bottom next to the composer.
 function insertCard(item, card) {
     const next = [...items.values()]
-        .filter((other) => other.id !== item.id && cards.has(other.id) && other.createdAt < item.createdAt)
-        .sort(newestFirst)[0];
+        .filter((other) => other.id !== item.id && cards.has(other.id) && other.createdAt > item.createdAt)
+        .sort(newestFirst).pop();
     els.list.insertBefore(card, next ? cards.get(next.id) : null);
+}
+
+// Stay pinned to the newest capture unless the user has scrolled up to read older ones.
+let pinnedToBottom = true;
+
+function scrollToBottom() {
+    els.feed.scrollTop = els.feed.scrollHeight;
+}
+
+function keepPinned() {
+    if (pinnedToBottom) scrollToBottom();
 }
 
 function removeCard(id) {
@@ -590,7 +603,8 @@ async function submit() {
         items.set(item.id, item);
         renderCard(item, { animate: true });
     }
-    els.feed.scrollTo({ top: 0, behavior: 'smooth' });
+    pinnedToBottom = true;
+    scrollToBottom();
     updatePill();
 
     for (const item of newItems) await store.put(item);
@@ -673,6 +687,7 @@ function trackViewport() {
         root.style.setProperty('--vv-height', `${vv.height}px`);
         root.style.setProperty('--vv-top', `${vv.offsetTop}px`);
         document.body.classList.toggle('keyboard-open', window.innerHeight - vv.height > 120);
+        keepPinned(); // keyboard opening shouldn't hide the latest capture
     };
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
@@ -826,6 +841,10 @@ async function init() {
         renderCard(item);
     }
     updatePill();
+    scrollToBottom();
+    els.feed.addEventListener('scroll', () => {
+        pinnedToBottom = els.feed.scrollHeight - els.feed.scrollTop - els.feed.clientHeight < 80;
+    }, { passive: true });
 
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if (!isConfigured()) openSetupSheet();
